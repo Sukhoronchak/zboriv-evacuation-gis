@@ -4,8 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ГІС Евакуація - Зборів</title>
+    
     <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#28a745">
+    <meta name="theme-color" content="#28a745">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
     <link rel="stylesheet" href="style.css">
@@ -17,6 +22,9 @@
         <div class="eco-item">Повітря (AQI): <span id="aqiValue" class="eco-value">--</span></div>
         <div class="eco-item">Температура: <span id="tempValue" class="eco-value">--</span></div>
         <div class="eco-item">Статус: <span id="ecoStatusText" style="font-weight:bold;">Завантаження...</span></div>
+        <button onclick="refreshAllData()" style="margin-top:8px; width:100%; font-size:10px; cursor:pointer; border-radius:4px; border:1px solid #ddd; background:#fff;">
+            <i class="fas fa-sync-alt"></i> Оновити дані
+        </button>
     </div>
 
     <button class="find-nearest-btn" onclick="locateUser()">
@@ -88,11 +96,17 @@
         }
 
         window.onload = function() {
+            refreshAllData();
+            // Автоматичне оновлення кожні 30 секунд
+            setInterval(refreshAllData, 30000);
+        };
+
+        function refreshAllData() {
             loadShelters();
             loadHazards();
             updateEcoData();
-            setInterval(updateEcoData, 300000); 
-        };
+            console.log("Система: Дані синхронізовано");
+        }
 
         function updateEcoData() {
             const lat = 49.6612, lon = 25.1402;
@@ -119,6 +133,7 @@
             fetch(`${API_BASE}/shelters`)
                 .then(res => res.json())
                 .then(data => {
+                    // Очищуємо старі маркери укриттів, якщо потрібно (для простоти залишаємо так)
                     data.forEach(s => {
                         L.marker([s.lat, s.lon], {
                             icon: L.divIcon({
@@ -135,12 +150,17 @@
         function loadHazards() {
             fetch(`${API_BASE}/hazards`)
                 .then(res => res.json())
-                .then(data => { if (data) data.forEach(h => drawHazard(h)); });
+                .then(data => { 
+                    if (data) {
+                        // Видаляємо старі шари перед малюванням нових
+                        Object.values(hazardsLayers).forEach(layer => map.removeLayer(layer));
+                        hazardsLayers = {};
+                        data.forEach(h => drawHazard(h)); 
+                    }
+                });
         }
 
-        // --- ОНОВЛЕНА ФУНКЦІЯ МАЛЮВАННЯ З РЕДАГУВАННЯМ ---
         function drawHazard(h) {
-            if (hazardsLayers[h.id]) map.removeLayer(hazardsLayers[h.id]);
             const circle = L.circle([h.lat, h.lon], {
                 color: '#dc3545', fillColor: '#dc3545', fillOpacity: 0.4, radius: h.radius || 500
             }).addTo(map);
@@ -168,7 +188,6 @@
             circle.bindPopup(content);
         }
 
-        // --- НОВА ФУНКЦІЯ РЕДАГУВАННЯ ---
         function updateHazardInDB(id, lat, lon, name) {
             const newRadius = parseInt(document.getElementById(`editRadius_${id}`).value);
             const updatedData = { name: name, radius: newRadius, lat: lat, lon: lon };
@@ -183,7 +202,7 @@
                 return res.json();
             })
             .then(() => {
-                hazardsLayers[id].setRadius(newRadius); // Оновлюємо коло на карті
+                hazardsLayers[id].setRadius(newRadius);
                 alert("Радіус успішно змінено!");
                 map.closePopup();
             })
@@ -218,7 +237,7 @@
                     L.popup().setLatLng([shelter.lat,  shelter.lon])
                         .setContent(`<b>Найближче укриття!</b><br>${shelter.name}<br>Відстань: ${shelter.distance_m} м`).openOn(map);
                 });
-        } );
+        });
 
         map.on('click', function(e) {
             if (!isAdmin) return;
