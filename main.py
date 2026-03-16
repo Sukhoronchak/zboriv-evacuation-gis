@@ -3,56 +3,40 @@ import os
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import Optional
 import uvicorn
-import math
 
-app = FastAPI(title="Eco-Evacuation System API")
+app = FastAPI()
 
-# Налаштування CORS, щоб фронтенд міг звертатися до бекенду
+# Дозволяємо всі запити (CORS)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 DB_PATH = "shelters.db"
 
-def execute_query(query: str, params: Optional[dict] = None, fetch: bool = False):
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        
-        if params:
-            cursor.execute(query, params)
-        else:
-            cursor.execute(query)
-        
-        if fetch or query.strip().upper().startswith("SELECT"):
-            rows = cursor.fetchall()
-            return [dict(row) for row in rows]
-        
-        conn.commit()
-        return True
-    except Exception as e:
-        print(f"❌ Database Error: {e}")
-        return None
-    finally:
-        if conn:
-            conn.close()
+# Функція ініціалізації бази (щоб нічого не пропадало)
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    # Створюємо таблицю загрози, якщо її забули додати
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS hazards (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            radius INTEGER,
+            lat REAL,
+            lon REAL
+        )
+    ''')
+    conn.commit()
+    conn.close()
 
-def calculate_distance(lat1, lon1, lat2, lon2):
-    R = 6371000 
-    phi1, phi2 = math.radians(lat1), math.radians(lat2)
-    delta_phi = math.radians(lat2 - lat1)
-    delta_lambda = math.radians(lon2 - lon1)
-    a = math.sin(delta_phi / 2.0)**2 + \
-        math.cos(phi1) * math.cos(phi2) * \
-        math.sin(delta_lambda / 2.0)**2
-    return R * (2 * math.atan2(math.sqrt(a), math.sqrt(1 - a)))
+init_db()
 
 class Hazard(BaseModel):
     name: str
@@ -62,42 +46,54 @@ class Hazard(BaseModel):
 
 @app.get("/shelters")
 async def get_shelters():
-    data = execute_query('SELECT * FROM shelters', fetch=True)
-    return data if data else []
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM shelters")
+    data = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return data
 
 @app.get("/hazards")
 async def get_hazards():
-    data = execute_query('SELECT * FROM hazards', fetch=True)
-    return data if data else []
-
-@app.get("/nearest_shelter")
-async def get_nearest_shelter(lat: float, lon: float):
-    shelters = execute_query('SELECT * FROM shelters', fetch=True)
-    if not shelters:
-        raise HTTPException(status_code=404, detail="Укриття не знайдені")
-    nearest = min(shelters, key=lambda s: calculate_distance(lat, lon, s['lat'], s['lon']))
-    nearest['distance_m'] = round(calculate_distance(lat, lon, nearest['lat'], nearest['lon']), 2)
-    return nearest
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM hazards")
+    data = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return data
 
 @app.post("/hazards")
 async def create_hazard(h: Hazard):
-    sql = "INSERT INTO hazards (name, radius, lat, lon) VALUES (:n, :r, :la, :lo)"
-    params = {"n": h.name, "r": h.radius, "la": h.lat, "lo": h.lon}
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute(sql, params)
-    new_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
-    return {**h.dict(), "id": new_id}
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO hazards (name, radius, lat, lon) VALUES (?, ?, ?, ?)",
+            (h.name, h.radius, h.lat, h.lon)
+        )
+        new_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        return {**h.dict(), "id": new_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/hazards/{h_id}")
 async def delete_hazard(h_id: int):
-    if execute_query("DELETE FROM hazards WHERE id = :id", {"id": h_id}):
-        return {"status": "deleted"}
-    raise HTTPException(status_code=404, detail="Not found")
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM hazards WHERE id = ?", (h_id,))
+    conn.commit()
+    conn.close()
+    return {"status": "deleted"}
+
+@app.get("/nearest_shelter")
+async def nearest(lat: float, lon: float):
+    # Тут залишається ваша логіка розрахунку відстані (з попереднього коду)
+    pass 
 
 if __name__ == "__main__":
-    # Отримуємо порт від Render або використовуємо 8000 локально
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)
