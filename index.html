@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ГІС Евакуація - Зборів</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div id="ecoStats" class="eco-panel">
+        <h5><i class="fas fa-leaf"></i> Моніторинг Зборів</h5>
+        <div class="eco-item">Повітря (AQI): <span id="aqiValue" class="eco-value">--</span></div>
+        <div class="eco-item">Температура: <span id="tempValue" class="eco-value">--</span></div>
+        <div class="eco-item">Статус: <span id="ecoStatusText" style="font-weight:bold;">Завантаження...</span></div>
+    </div>
+
+    <button class="find-nearest-btn" onclick="locateUser()">
+        <i class="fas fa-person-running"></i> 
+        <span>Найближче укриття</span>
+    </button>
+
+    <div class="user-menu-btn" onclick="toggleLoginModal()" title="Кабінет диспетчера">
+        <i class="fas fa-user-shield"></i>
+        <div id="adminBadge" class="badge-admin">ADM</div>
+    </div>
+
+    <div id="modalOverlay" onclick="toggleLoginModal()"></div>
+    <div id="loginModal">
+        <span class="close-modal" onclick="toggleLoginModal()">&times;</span>
+        <i class="fas fa-lock" style="font-size: 40px; color: #007bff; margin-bottom: 15px;"></i>
+        <h3>Авторизація</h3>
+        <input type="password" id="passInput" placeholder="Пароль диспетчера">
+        <button onclick="login()">Увійти</button>
+    </div>
+
+    <div id="adminPanel">
+        <h4><i class="fas fa-exclamation-triangle"></i> Режим загрози</h4>
+        <div class="input-group">
+            <label>Тип події:</label>
+            <select id="hName">
+                <option value="Хімічне зараження">☢️ Хімічне зараження</option>
+                <option value="Витік аміаку">🧪 Витік аміаку</option>
+                <option value="Пожежа">🔥 Пожежа</option>
+                <option value="Забруднення води">💧 Забруднення води</option>
+            </select>
+        </div>
+        <div class="input-group">
+            <label>Радіус (м):</label>
+            <input type="number" id="hRadius" value="500">
+        </div>
+        <button class="btn-secondary" onclick="logout()">Завершити сеанс</button>
+    </div>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // ВАЖЛИВО: Після деплою на Render.com замініть адресу нижче на ту, яку отримаєте
+        // Наприклад: const API_BASE = "https://my-zboriv-api.onrender.com";
+        const API_BASE = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" 
+            ? "http://127.0.0.1:8000" 
+            : "https://ВАШ-ПРОЕКТ.onrender.com"; // <-- Сюди вставте посилання з Render
+
+        delete L.Icon.Default.prototype._getIconUrl;
+        L.Icon.Default.mergeOptions({
+            iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+            iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+            shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+        });
+
+        var isAdmin = localStorage.getItem('isGisAdmin') === 'true';
+        var map = L.map('map', { zoomControl: true }).setView([49.6612, 25.1402], 14);
+        var hazardsLayers = {}; 
+        var routeLine = null;
+        var userMarker = null;
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap'
+        }).addTo(map);
+
+        if (isAdmin) {
+            document.body.classList.add('admin-active');
+            document.getElementById('adminPanel').style.display = 'block';
+            document.getElementById('adminBadge').style.display = 'block';
+        }
+
+        window.onload = function() {
+            loadShelters();
+            loadHazards();
+            updateEcoData();
+            setInterval(updateEcoData, 300000); 
+        };
+
+        function updateEcoData() {
+            const lat = 49.6612, lon = 25.1402;
+            fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=european_aqi`)
+                .then(res => res.json())
+                .then(data => {
+                    const aqi = data.current.european_aqi;
+                    const aqiEl = document.getElementById('aqiValue');
+                    const statusEl = document.getElementById('ecoStatusText');
+                    aqiEl.innerText = aqi;
+                    if (aqi <= 20) { statusEl.innerText = "Чисто"; statusEl.style.color = "#28a745"; }
+                    else if (aqi <= 50) { statusEl.innerText = "Помірно"; statusEl.style.color = "#ffc107"; }
+                    else { statusEl.innerText = "Забруднено"; statusEl.style.color = "#dc3545"; }
+                }).catch(e => console.log("Eco API Error"));
+
+            fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m`)
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('tempValue').innerText = data.current.temperature_2m + "°C";
+                });
+        }
+
+        function loadShelters() {
+            fetch(`${API_BASE}/shelters`)
+                .then(res => res.json())
+                .then(data => {
+                    data.forEach(s => {
+                        L.marker([s.lat, s.lon], {
+                            icon: L.divIcon({
+                                className: 'custom-div-icon',
+                                html: `<div style='background-color:#28a745;' class='marker-pin'></div><i class='fas fa-shield-halved'></i>`,
+                                iconSize: [30, 42], iconAnchor: [15, 42], popupAnchor: [0, -35]
+                            })
+                        }).addTo(map)
+                        .bindPopup(`<b>${s.name}</b><br><i class="fas fa-users"></i> Місткість: ${s.capacity}`);
+                    });
+                });
+        }
+
+        function loadHazards() {
+            fetch(`${API_BASE}/hazards`)
+                .then(res => res.json())
+                .then(data => { if (data) data.forEach(h => drawHazard(h)); });
+        }
+
+        function drawHazard(h) {
+            if (hazardsLayers[h.id]) map.removeLayer(hazardsLayers[h.id]);
+            const circle = L.circle([h.lat, h.lon], {
+                color: '#dc3545', fillColor: '#dc3545', fillOpacity: 0.4, radius: h.radius || 500
+            }).addTo(map);
+            hazardsLayers[h.id] = circle;
+
+            const content = `
+                <div style="text-align:center; min-width: 150px;">
+                    <b style="color:#dc3545;">🚨 ${h.name}</b><br>
+                    <span>Радіус: ${h.radius} м</span>
+                    ${isAdmin ? `
+                    <div style="margin-top:10px; display:flex; gap:5px; justify-content:center;">
+                        <button onclick="removeHazardFromDB(${h.id})" style="width:30px; background:#dc3545; color:white; border-radius:4px; border:none; cursor:pointer;">🗑️</button>
+                    </div>` : ''}
+                </div>`;
+            circle.bindPopup(content);
+        }
+
+        function removeHazardFromDB(id) {
+            if (confirm("Видалити цю загрозу?")) {
+                fetch(`${API_BASE}/hazards/${id}`, { method: 'DELETE' })
+                .then(() => { map.removeLayer(hazardsLayers[id]); delete hazardsLayers[id]; });
+            }
+        }
+
+        function locateUser() {
+            map.locate({setView: true, maxZoom: 16});
+        }
+
+        map.on('locationerror', function(e) {
+            alert("Помилка GPS: Переконайтеся, що сайт використовує HTTPS.");
+        });
+
+        map.on('locationfound', function(e) {
+            if (userMarker) map.removeLayer(userMarker);
+            userMarker = L.marker(e.latlng).addTo(map).bindPopup("Ви тут").openPopup();
+
+            fetch(`${API_BASE}/nearest_shelter?lat=${e.latlng.lat}&lon=${e.latlng.lng}`)
+                .then(res => res.json())
+                .then(shelter => {
+                    if (routeLine) map.removeLayer(routeLine);
+                    routeLine = L.polyline([e.latlng, [shelter.lat, shelter.lon]], 
+                        {color: '#28a745', weight: 5, dashArray: '10, 10'}).addTo(map);
+                    L.popup().setLatLng([shelter.lat, shelter.lon])
+                        .setContent(`<b>Найближче укриття!</b><br>${shelter.name}<br>Відстань: ${shelter.distance_m} м`).openOn(map);
+                });
+        } );
+
+        map.on('click', function(e) {
+            if (!isAdmin) return;
+            const data = {
+                name: document.getElementById('hName').value,
+                radius: parseInt(document.getElementById('hRadius').value),
+                lat: e.latlng.lat, lon: e.latlng.lng
+            };
+            fetch(`${API_BASE}/hazards`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            }).then(res => res.json()).then(h => drawHazard(h));
+        });
+
+        function login() {
+            if (document.getElementById('passInput').value === "admin123") {
+                localStorage.setItem('isGisAdmin', 'true');
+                location.reload();
+            } else { alert("Невірний пароль!"); }
+        }
+
+        function logout() { 
+            localStorage.removeItem('isGisAdmin'); 
+            location.reload(); 
+        }
+
+        function toggleLoginModal() {
+            if (isAdmin) return;
+            const modal = document.getElementById('loginModal');
+            const overlay = document.getElementById('modalOverlay');
+            modal.style.display = (modal.style.display === 'block') ? 'none' : 'block';
+            overlay.style.display = (overlay.style.display === 'block') ? 'none' : 'block';
+        }
+    </script>
+</body>
+</html>

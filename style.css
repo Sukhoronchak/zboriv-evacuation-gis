@@ -1,0 +1,274 @@
+/* style.css */
+body { 
+    font-family: 'Segoe UI', Roboto, sans-serif; 
+    margin: 0; 
+    overflow: hidden; 
+    background-color: #f0f2f5;
+}
+
+#map { 
+    height: 100vh; 
+    width: 100%; 
+    z-index: 1; 
+}
+
+/* КАСТОМНІ МАРКЕРИ-ЩИТИ */
+.custom-div-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.marker-pin {
+    width: 30px;
+    height: 30px;
+    border-radius: 50% 50% 50% 0;
+    position: absolute;
+    transform: rotate(-45deg);
+    left: 50%;
+    top: 50%;
+    margin: -15px 0 0 -15px;
+    border: 2px solid white;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+}
+.custom-div-icon i {
+    position: absolute;
+    color: white;
+    font-size: 14px;
+    z-index: 10;
+}
+
+/* КНОПКА "НАЙБЛИЖЧЕ УКРИТТЯ" (ЦЕНТРОВАНА) */
+.find-nearest-btn {
+    position: fixed;
+    bottom: 25px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    background: linear-gradient(135deg, #28a745 0%, #218838 100%);
+    color: white;
+    padding: 12px 24px; 
+    border: none;
+    border-radius: 50px; 
+    font-size: 14px;
+    font-weight: 600;
+    
+    /* ЦЕНТРУВАННЯ ТЕКСТУ ТА ІКОНКИ */
+    display: flex;
+    align-items: center;      /* Центрування по вертикалі */
+    justify-content: center;   /* Центрування по горизонталі */
+    text-align: center;
+    gap: 10px;                 /* Відстань між іконкою і текстом */
+    
+    cursor: pointer;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    transition: all 0.3s ease;
+    white-space: nowrap;       /* Щоб текст не перескакував на новий рядок */
+    min-width: 180px;          /* Мінімальна ширина, щоб кнопка була солідною */
+}
+
+.find-nearest-btn:hover {
+    transform: translateX(-50%) translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+    filter: brightness(1.1);
+}
+
+/* КНОПКА КОРИСТУВАЧА */
+.user-menu-btn {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+    background: white;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    border: 1px solid rgba(0,0,0,0.1);
+    transition: all 0.3s ease-in-out;
+    color: #444;
+}
+
+.user-menu-btn:hover {
+    transform: scale(1.1);
+    color: #007bff;
+    box-shadow: 0 6px 15px rgba(0,0,0,0.2);
+}
+
+body.admin-active .user-menu-btn {
+    display: none;
+}
+
+.badge-admin {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    background: #dc3545;
+    color: white;
+    font-size: 9px;
+    font-weight: bold;
+    padding: 2px 5px;
+    border-radius: 10px;
+}
+
+/* МОНІТОРИНГ ДОВКІЛЛЯ (ОНОВЛЕНО) */
+.eco-panel {
+    position: absolute;
+    top: 130px; 
+    left: 10px;
+    z-index: 1000;
+    background: rgba(255, 255, 255, 0.75);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    padding: 12px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    width: 180px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-left: 5px solid #007bff;
+    opacity: 0.8; 
+    transition: all 0.4s ease-in-out;
+}
+
+.eco-panel:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.95);
+    transform: translateX(5px);
+}
+
+/* Анімація для статусу (пульсація) */
+#ecoStatusText {
+    animation: statusPulse 2s infinite ease-in-out;
+}
+
+@keyframes statusPulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+.eco-panel h5 { 
+    margin: 0 0 8px 0; 
+    font-size: 13px; 
+    color: #222; 
+    display: flex; 
+    align-items: center; 
+    gap: 8px; 
+}
+
+.eco-item { 
+    font-size: 11px; 
+    margin: 5px 0; 
+    color: #444; 
+    display: flex; 
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+    padding-bottom: 3px;
+}
+
+.eco-value { font-weight: 700; color: #007bff; }
+
+/* ПАНЕЛЬ АДМІНА */
+#adminPanel {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 25px rgba(0,0,0,0.2);
+    display: none;
+    width: 260px;
+    border-top: 5px solid #dc3545; 
+}
+
+/* МОДАЛЬНЕ ВІКНО */
+#modalOverlay {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(4px);
+    z-index: 1999;
+    display: none;
+}
+
+#loginModal {
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2000;
+    background: white;
+    padding: 30px;
+    border-radius: 15px;
+    box-shadow: 0 15px 35px rgba(0,0,0,0.4);
+    display: none;
+    width: 280px;
+    text-align: center;
+
+    .close-modal {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    cursor: pointer;
+    font-size: 24px;
+    color: #999;
+    line-height: 1;
+    transition: color 0.2s;
+}
+
+.close-modal:hover {
+    color: #dc3545;
+}
+}
+
+/* ФОРМИ ТА КНОПКИ */
+input, select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    box-sizing: border-box;
+    font-size: 14px;
+    margin-bottom: 10px;
+    outline: none;
+}
+
+button {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 6px;
+    background: #007bff;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+button:hover { background: #0056b3; transform: translateY(-1px); }
+.btn-secondary { background: #6c757d; margin-top: 10px; }
+
+/* АДАПТИВНІСТЬ */
+@media (max-width: 600px) {
+    .find-nearest-btn {
+        width: auto;           /* Дозволяємо кнопці підлаштовуватися */
+        min-width: 160px;      /* Трохи менша ширина для мобільного */
+        padding: 10px 20px;
+        font-size: 13px;
+        bottom: 20px;
+    }
+
+    .find-nearest-btn span {
+        display: inline;       /* ПЕРЕКОНАЙТЕСЯ, що тут inline, а не none */
+    }
+
+    .eco-panel {
+        width: 150px;
+        font-size: 10px;
+        top: 80px; /* Щоб не заважала кнопкам масштабування */
+    }
+}
