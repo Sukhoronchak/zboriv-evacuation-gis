@@ -1,0 +1,15 @@
+{
+  "short_name": "ГІС Зборів",
+  "name": "Система евакуації Зборів",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/564/564440.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#28a745",
+  "background_color": "#ffffff"
+}
