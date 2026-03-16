@@ -58,11 +58,10 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // ВАЖЛИВО: Після деплою на Render.com замініть адресу нижче на ту, яку отримаєте
-        // Наприклад: const API_BASE = "https://my-zboriv-api.onrender.com";
+
         const API_BASE = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" 
             ? "http://127.0.0.1:8000" 
-            : "https://ВАШ-ПРОЕКТ.onrender.com"; // <-- Сюди вставте посилання з Render
+            : "https://zboriv-evacuation-gis.onrender.com"; // <-- Сюди вставте посилання з Render
 
         delete L.Icon.Default.prototype._getIconUrl;
         L.Icon.Default.mergeOptions({
