@@ -58,10 +58,9 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-
         const API_BASE = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" 
             ? "http://127.0.0.1:8000" 
-            : "https://zboriv-evacuation-gis.onrender.com"; // <-- Сюди вставте посилання з Render
+            : "https://zboriv-evacuation-gis.onrender.com";
 
         delete L.Icon.Default.prototype._getIconUrl;
         L.Icon.Default.mergeOptions({
@@ -137,6 +136,7 @@
                 .then(data => { if (data) data.forEach(h => drawHazard(h)); });
         }
 
+        // --- ОНОВЛЕНА ФУНКЦІЯ МАЛЮВАННЯ З РЕДАГУВАННЯМ ---
         function drawHazard(h) {
             if (hazardsLayers[h.id]) map.removeLayer(hazardsLayers[h.id]);
             const circle = L.circle([h.lat, h.lon], {
@@ -145,15 +145,47 @@
             hazardsLayers[h.id] = circle;
 
             const content = `
-                <div style="text-align:center; min-width: 150px;">
+                <div style="text-align:center; min-width: 160px;">
                     <b style="color:#dc3545;">🚨 ${h.name}</b><br>
-                    <span>Радіус: ${h.radius} м</span>
+                    <div style="margin: 8px 0;">
+                        <label>Радіус (м):</label>
+                        <input type="number" id="editRadius_${h.id}" value="${h.radius}" style="width:65px; padding:2px; border:1px solid #ccc;">
+                    </div>
                     ${isAdmin ? `
-                    <div style="margin-top:10px; display:flex; gap:5px; justify-content:center;">
-                        <button onclick="removeHazardFromDB(${h.id})" style="width:30px; background:#dc3545; color:white; border-radius:4px; border:none; cursor:pointer;">🗑️</button>
-                    </div>` : ''}
+                    <div style="display:flex; gap:8px; justify-content:center; margin-top:5px;">
+                        <button onclick="updateHazardInDB(${h.id}, ${h.lat}, ${h.lon}, '${h.name}')" 
+                                style="background:#28a745; color:white; border:none; padding:6px 10px; border-radius:4px; cursor:pointer;" title="Зберегти">
+                            <i class="fas fa-save"></i>
+                        </button>
+                        <button onclick="removeHazardFromDB(${h.id})" 
+                                style="background:#dc3545; color:white; border:none; padding:6px 10px; border-radius:4px; cursor:pointer;" title="Видалити">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>` : `<span>Радіус: ${h.radius} м</span>`}
                 </div>`;
             circle.bindPopup(content);
+        }
+
+        // --- НОВА ФУНКЦІЯ РЕДАГУВАННЯ ---
+        function updateHazardInDB(id, lat, lon, name) {
+            const newRadius = parseInt(document.getElementById(`editRadius_${id}`).value);
+            const updatedData = { name: name, radius: newRadius, lat: lat, lon: lon };
+
+            fetch(`${API_BASE}/hazards/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updatedData)
+            })
+            .then(res => {
+                if (!res.ok) throw new Error("Помилка оновлення");
+                return res.json();
+            })
+            .then(() => {
+                hazardsLayers[id].setRadius(newRadius); // Оновлюємо коло на карті
+                alert("Радіус успішно змінено!");
+                map.closePopup();
+            })
+            .catch(err => alert("Помилка: " + err));
         }
 
         function removeHazardFromDB(id) {
@@ -181,7 +213,7 @@
                     if (routeLine) map.removeLayer(routeLine);
                     routeLine = L.polyline([e.latlng, [shelter.lat, shelter.lon]], 
                         {color: '#28a745', weight: 5, dashArray: '10, 10'}).addTo(map);
-                    L.popup().setLatLng([shelter.lat, shelter.lon])
+                    L.popup().setLatLng([shelter.lat,  shelter.lon])
                         .setContent(`<b>Найближче укриття!</b><br>${shelter.name}<br>Відстань: ${shelter.distance_m} м`).openOn(map);
                 });
         } );
