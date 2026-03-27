@@ -88,7 +88,9 @@
         var hazardsLayers = {}; 
         var routeLine = null;
         var userMarker = null;
-        var lastHazardCount = localStorage.getItem('lastSeenHazards') ? parseInt(localStorage.getItem('lastSeenHazards')) : -1;
+
+        // Використовуємо Set для зберігання ID загрози замість простого лічильника
+        var knownHazardIds = new Set(JSON.parse(localStorage.getItem('knownHazardIds') || '[]'));
 
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; OpenStreetMap'
@@ -100,13 +102,10 @@
             document.getElementById('adminBadge').style.display = 'block';
         }
 
-        // Функція запиту дозволу, що викликається кнопкою
         function askNotificationPermission() {
             if ("Notification" in window) {
                 Notification.requestPermission().then(permission => {
                     if (permission === "granted") {
-                        console.log("Дозвіл отримано");
-                        // Короткий звук для перевірки/активації аудіо-каналу
                         const audio = document.getElementById('alertSound');
                         audio.play().then(() => audio.pause()).catch(e => console.log("Аудіо активується"));
                     }
@@ -138,7 +137,6 @@
             loadShelters();
             loadHazards();
             updateEcoData();
-            console.log("Система: Дані синхронізовано");
         }
 
         function updateEcoData() {
@@ -184,15 +182,22 @@
                 .then(res => res.json())
                 .then(data => { 
                     if (data) {
-                        if (lastHazardCount === -1) {
-                            lastHazardCount = data.length;
-                            localStorage.setItem('lastSeenHazards', data.length);
-                        } 
-                        else if (data.length > lastHazardCount) {
-                            triggerEmergencyAlert(data[data.length - 1]);
-                            lastHazardCount = data.length;
-                            localStorage.setItem('lastSeenHazards', data.length);
-                        }
+                        let hasNew = false;
+                        let currentIds = new Set();
+
+                        data.forEach(h => {
+                            currentIds.add(h.id);
+                            // Якщо цього ID немає в списку відомих — це нова загроза
+                            if (!knownHazardIds.has(h.id)) {
+                                hasNew = true;
+                                triggerEmergencyAlert(h);
+                            }
+                        });
+
+                        // Оновлюємо список відомих ID (видаляємо ті, яких більше немає в базі)
+                        knownHazardIds = currentIds;
+                        localStorage.setItem('knownHazardIds', JSON.stringify(Array.from(knownHazardIds)));
+
                         Object.values(hazardsLayers).forEach(layer => map.removeLayer(layer));
                         hazardsLayers = {};
                         data.forEach(h => drawHazard(h)); 
@@ -224,9 +229,7 @@
                 }
             } else {
                 alert(`🚨 УВАГА! НОВА ЗАГРОЗА: ${hazard.name}`);
-                stopAlertSound();
             }
-            loadHazards();
         }
 
         function drawHazard(h) {
@@ -283,8 +286,9 @@
                 .then(() => { 
                     map.removeLayer(hazardsLayers[id]); 
                     delete hazardsLayers[id];
-                    lastHazardCount--;
-                    localStorage.setItem('lastSeenHazards', lastHazardCount);
+                    // Видаляємо з пам'яті, щоб при повторному створенні спрацював звук
+                    knownHazardIds.delete(id);
+                    localStorage.setItem('knownHazardIds', JSON.stringify(Array.from(knownHazardIds)));
                 });
             }
         }
@@ -322,7 +326,12 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
-            }).then(res => res.json()).then(h => drawHazard(h));
+            }).then(res => res.json()).then(h => {
+                drawHazard(h);
+                // Додаємо в список відомих, щоб не було повторного спрацювання звуку при відмальовці
+                knownHazardIds.add(h.id);
+                localStorage.setItem('knownHazardIds', JSON.stringify(Array.from(knownHazardIds)));
+            });
         });
 
         function login() {
@@ -346,8 +355,7 @@
         }
 
         if ('serviceWorker' in navigator) {
-            // Додано параметр версії для примусового оновлення кешу
-            navigator.serviceWorker.register('sw.js?v=3');
+            navigator.serviceWorker.register('sw.js?v=5');
         }
     </script>
 </body>
