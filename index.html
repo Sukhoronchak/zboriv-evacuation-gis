@@ -87,7 +87,6 @@
         var routeLine = null;
         var userMarker = null;
         
-        // Використовуємо localStorage для збереження кількості вже бачених загроз
         var lastHazardCount = localStorage.getItem('lastSeenHazards') ? parseInt(localStorage.getItem('lastSeenHazards')) : -1;
 
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
@@ -100,7 +99,6 @@
             document.getElementById('adminBadge').style.display = 'block';
         }
 
-        // --- КЕРУВАННЯ ЗВУКОМ ---
         function stopAlertSound() {
             const audio = document.getElementById('alertSound');
             audio.loop = false;
@@ -111,7 +109,6 @@
         document.addEventListener('click', stopAlertSound);
         document.addEventListener('touchstart', stopAlertSound);
 
-        // Зупиняти звук та оновлювати дані, як тільки користувач відкриває застосунок
         window.addEventListener('focus', function() {
             stopAlertSound();
             refreshAllData();
@@ -175,12 +172,10 @@
                 .then(res => res.json())
                 .then(data => { 
                     if (data) {
-                        // Ініціалізація при першому завантаженні
                         if (lastHazardCount === -1) {
                             lastHazardCount = data.length;
                             localStorage.setItem('lastSeenHazards', data.length);
                         } 
-                        // Якщо з'явилася реально нова загроза
                         else if (data.length > lastHazardCount) {
                             triggerEmergencyAlert(data[data.length - 1]);
                             lastHazardCount = data.length;
@@ -199,16 +194,31 @@
             audio.loop = true; 
             audio.play().catch(() => console.log("Звук чекає взаємодії"));
 
+            // Відображення сповіщення
             if (Notification.permission === "granted") {
-                const notif = new Notification("🚨 ТРИВОГА: ЗБОРІВ", {
-                    body: `Виявлено загрозу: ${hazard.name}. Відкрийте мапу!`,
-                    icon: "https://cdn-icons-png.flaticon.com/512/564/564440.png"
-                });
-                notif.onclick = function() { window.focus(); stopAlertSound(); };
+                if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                    navigator.serviceWorker.ready.then(registration => {
+                        registration.showNotification("🚨 ТРИВОГА: ЗБОРІВ", {
+                            body: `Нова загроза: ${hazard.name}. Радіус: ${hazard.radius}м.`,
+                            icon: "https://cdn-icons-png.flaticon.com/512/564/564440.png",
+                            vibrate: [200, 100, 200],
+                            tag: 'emergency-alert'
+                        });
+                    });
+                } else {
+                    const notif = new Notification("🚨 ТРИВОГА: ЗБОРІВ", {
+                        body: `Виявлено загрозу: ${hazard.name}. Відкрийте мапу!`,
+                        icon: "https://cdn-icons-png.flaticon.com/512/564/564440.png"
+                    });
+                    notif.onclick = function() { window.focus(); stopAlertSound(); };
+                }
             } else {
                 alert(`🚨 УВАГА! НОВА ЗАГРОЗА: ${hazard.name}`);
                 stopAlertSound();
             }
+            
+            // ПРИМУСОВЕ ОНОВЛЕННЯ КАРТИ
+            loadHazards();
         }
 
         function drawHazard(h) {
@@ -266,7 +276,6 @@
                 .then(() => { 
                     map.removeLayer(hazardsLayers[id]); 
                     delete hazardsLayers[id];
-                    // Оновлюємо лічильник у localStorage після видалення
                     lastHazardCount--;
                     localStorage.setItem('lastSeenHazards', lastHazardCount);
                 });
