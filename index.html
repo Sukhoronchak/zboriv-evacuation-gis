@@ -311,6 +311,9 @@
             modal.style.display = (modal.style.display === 'block') ? 'none' : 'block';
             overlay.style.display = (overlay.style.display === 'block') ? 'none' : 'block';
         }
+        if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js');
+}
     </script>
 </body>
 </html>
