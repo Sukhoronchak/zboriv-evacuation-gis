@@ -20,13 +20,26 @@ self.addEventListener('fetch', (event) => {
 // 4. Очікування Push-повідомлень (зарезервовано для майбутнього)
 self.addEventListener('push', function(event) {
     console.log('SW: Отримано сигнал Push');
-    // Тут можна додати логіку відображення сповіщення, якщо сервер надішле сигнал
 });
 
-// 5. Обробка кліку на сповіщення (щоб відкривався застосунок)
+// 5. Оновлена обробка кліку: виправляє помилку 404 та фокусує вікно
 self.addEventListener('notificationclick', function(event) {
-    event.notification.close();
+    event.notification.close(); // Закриваємо банер сповіщення
+
     event.waitUntil(
-        clients.openWindow('/')
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
+            // Перевіряємо, чи застосунок уже відкритий у якійсь вкладці
+            for (let i = 0; i < clientList.length; i++) {
+                let client = clientList[i];
+                // Якщо знайдено відкриту вкладку нашого сайту — фокусуємося на ній
+                if (client.url.includes(self.location.origin) && 'focus' in client) {
+                    return client.focus();
+                }
+            }
+            // Якщо застосунок закритий — відкриваємо головну сторінку (відносно sw.js)
+            if (clients.openWindow) {
+                return clients.openWindow('./'); 
+            }
+        })
     );
 });
