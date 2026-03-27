@@ -1,42 +1,45 @@
-// sw.js - Сервіс-воркер для ГІС Евакуація Зборів
+// sw.js - Сервіс-воркер для ГІС Евакуація Зборів (Версія 4 - CORS Fix)
 
-// 1. Встановлення: змушуємо новий воркер активуватися негайно
+// 1. Встановлення: активуємо негайно
 self.addEventListener('install', (event) => {
     console.log('SW: Встановлено');
     self.skipWaiting();
 });
 
-// 2. Активація: беремо контроль над усіма вкладками одразу
+// 2. Активація: контроль над усіма вкладками
 self.addEventListener('activate', (event) => {
     console.log('SW: Активовано');
     event.waitUntil(clients.claim());
 });
 
-// 3. Обробка запитів: пропускаємо все через мережу (щоб дані завжди були свіжі)
+// 3. ОБРОБКА ЗАПИТІВ (Виправлено для запобігання TypeError)
 self.addEventListener('fetch', (event) => {
-    event.respondWith(fetch(event.request));
+    event.respondWith(
+        fetch(event.request).catch(err => {
+            console.warn('SW: Помилка мережі або CORS при запиті:', event.request.url);
+            // Повертаємо порожню відповідь, щоб не "валити" проміс воркера
+            return new Response('Network error', { status: 408, statusText: 'Network Error or CORS blocked' });
+        })
+    );
 });
 
-// 4. Очікування Push-повідомлень (зарезервовано для майбутнього)
+// 4. Очікування Push-повідомлень
 self.addEventListener('push', function(event) {
     console.log('SW: Отримано сигнал Push');
 });
 
-// 5. Оновлена обробка кліку: виправляє помилку 404 та фокусує вікно
+// 5. Оновлена обробка кліку: фокусування вікна та виправлення 404
 self.addEventListener('notificationclick', function(event) {
-    event.notification.close(); // Закриваємо банер сповіщення
+    event.notification.close();
 
     event.waitUntil(
         clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
-            // Перевіряємо, чи застосунок уже відкритий у якійсь вкладці
             for (let i = 0; i < clientList.length; i++) {
                 let client = clientList[i];
-                // Якщо знайдено відкриту вкладку нашого сайту — фокусуємося на ній
                 if (client.url.includes(self.location.origin) && 'focus' in client) {
                     return client.focus();
                 }
             }
-            // Якщо застосунок закритий — відкриваємо головну сторінку (відносно sw.js)
             if (clients.openWindow) {
                 return clients.openWindow('./'); 
             }
