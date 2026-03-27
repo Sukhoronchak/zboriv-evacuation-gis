@@ -24,9 +24,12 @@
         <div class="eco-item">Повітря (AQI): <span id="aqiValue" class="eco-value">--</span></div>
         <div class="eco-item">Температура: <span id="tempValue" class="eco-value">--</span></div>
         <div class="eco-item">Статус: <span id="ecoStatusText" style="font-weight:bold;">Завантаження...</span></div>
-        <button onclick="askNotificationPermission(); refreshAllData()" style="margin-top:8px; width:100%; font-size:10px; cursor:pointer; border-radius:4px; border:1px solid #ddd; background:#fff; padding: 5px;">
-            <i class="fas fa-sync-alt"></i> Оновити дані
-        </button>
+        
+<button onclick="askNotificationPermission(); refreshAllData()" style="margin-top:10px; width:100%; font-size:12px; font-weight:bold; cursor:pointer; border-radius:6px; border:1px solid #28a745; background:#fff; color:#28a745; padding: 8px; display: flex; align-items: center; justify-content: center; gap: 5px;">
+    <i class="fas fa-sync-alt"></i> 
+    <span>Оновити дані</span>
+</button>
+        
     </div>
 
     <button class="find-nearest-btn" onclick="askNotificationPermission(); locateUser()">
