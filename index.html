@@ -24,12 +24,12 @@
         <div class="eco-item">Повітря (AQI): <span id="aqiValue" class="eco-value">--</span></div>
         <div class="eco-item">Температура: <span id="tempValue" class="eco-value">--</span></div>
         <div class="eco-item">Статус: <span id="ecoStatusText" style="font-weight:bold;">Завантаження...</span></div>
-        <button onclick="refreshAllData()" style="margin-top:8px; width:100%; font-size:10px; cursor:pointer; border-radius:4px; border:1px solid #ddd; background:#fff;">
+        <button onclick="askNotificationPermission(); refreshAllData()" style="margin-top:8px; width:100%; font-size:10px; cursor:pointer; border-radius:4px; border:1px solid #ddd; background:#fff; padding: 5px;">
             <i class="fas fa-sync-alt"></i> Оновити дані
         </button>
     </div>
 
-    <button class="find-nearest-btn" onclick="locateUser()">
+    <button class="find-nearest-btn" onclick="askNotificationPermission(); locateUser()">
         <i class="fas fa-person-running"></i> 
         <span>Найближче укриття</span>
     </button>
@@ -99,6 +99,17 @@
             document.getElementById('adminBadge').style.display = 'block';
         }
 
+        // --- ФУНКЦІЯ ЗАПИТУ ДОЗВОЛУ ---
+        function askNotificationPermission() {
+            if ("Notification" in window) {
+                Notification.requestPermission().then(permission => {
+                    if (permission === "granted") {
+                        console.log("Дозвіл на сповіщення отримано");
+                    }
+                });
+            }
+        }
+
         function stopAlertSound() {
             const audio = document.getElementById('alertSound');
             audio.loop = false;
@@ -115,10 +126,9 @@
         });
 
         window.onload = function() {
-            if ("Notification" in window) {
-                Notification.requestPermission();
-            }
+            // Отримуємо початкові дані
             refreshAllData();
+            // Встановлюємо інтервал оновлення
             setInterval(refreshAllData, 30000);
         };
 
@@ -194,7 +204,6 @@
             audio.loop = true; 
             audio.play().catch(() => console.log("Звук чекає взаємодії"));
 
-            // Відображення сповіщення
             if (Notification.permission === "granted") {
                 if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
                     navigator.serviceWorker.ready.then(registration => {
@@ -216,8 +225,6 @@
                 alert(`🚨 УВАГА! НОВА ЗАГРОЗА: ${hazard.name}`);
                 stopAlertSound();
             }
-            
-            // ПРИМУСОВЕ ОНОВЛЕННЯ КАРТИ
             loadHazards();
         }
 
