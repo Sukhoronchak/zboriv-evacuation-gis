@@ -25,11 +25,10 @@
         <div class="eco-item">Температура: <span id="tempValue" class="eco-value">--</span></div>
         <div class="eco-item">Статус: <span id="ecoStatusText" style="font-weight:bold;">Завантаження...</span></div>
         
-<button onclick="askNotificationPermission(); refreshAllData()" style="margin-top:10px; width:100%; font-size:12px; font-weight:bold; cursor:pointer; border-radius:6px; border:1px solid #28a745; background:#fff; color:#28a745; padding: 8px; display: flex; align-items: center; justify-content: center; gap: 5px;">
-    <i class="fas fa-sync-alt"></i> 
-    <span>Оновити дані</span>
-</button>
-        
+        <button onclick="askNotificationPermission(); refreshAllData()" style="margin-top:10px; width:100%; font-size:12px; font-weight:bold; cursor:pointer; border-radius:6px; border:1px solid #28a745; background:#fff; color:#28a745; padding: 10px; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <i class="fas fa-sync-alt"></i> 
+            <span>Оновити дані</span>
+        </button>
     </div>
 
     <button class="find-nearest-btn" onclick="askNotificationPermission(); locateUser()">
@@ -89,7 +88,6 @@
         var hazardsLayers = {}; 
         var routeLine = null;
         var userMarker = null;
-        
         var lastHazardCount = localStorage.getItem('lastSeenHazards') ? parseInt(localStorage.getItem('lastSeenHazards')) : -1;
 
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
@@ -102,12 +100,15 @@
             document.getElementById('adminBadge').style.display = 'block';
         }
 
-        // --- ФУНКЦІЯ ЗАПИТУ ДОЗВОЛУ ---
+        // Функція запиту дозволу, що викликається кнопкою
         function askNotificationPermission() {
             if ("Notification" in window) {
                 Notification.requestPermission().then(permission => {
                     if (permission === "granted") {
-                        console.log("Дозвіл на сповіщення отримано");
+                        console.log("Дозвіл отримано");
+                        // Короткий звук для перевірки/активації аудіо-каналу
+                        const audio = document.getElementById('alertSound');
+                        audio.play().then(() => audio.pause()).catch(e => console.log("Аудіо активується"));
                     }
                 });
             }
@@ -129,9 +130,7 @@
         });
 
         window.onload = function() {
-            // Отримуємо початкові дані
             refreshAllData();
-            // Встановлюємо інтервал оновлення
             setInterval(refreshAllData, 30000);
         };
 
@@ -194,7 +193,6 @@
                             lastHazardCount = data.length;
                             localStorage.setItem('lastSeenHazards', data.length);
                         }
-
                         Object.values(hazardsLayers).forEach(layer => map.removeLayer(layer));
                         hazardsLayers = {};
                         data.forEach(h => drawHazard(h)); 
@@ -262,7 +260,6 @@
         function updateHazardInDB(id, lat, lon, name) {
             const newRadius = parseInt(document.getElementById(`editRadius_${id}`).value);
             const updatedData = { name: name, radius: newRadius, lat: lat, lon: lon };
-
             fetch(`${API_BASE}/hazards/${id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -303,7 +300,6 @@
         map.on('locationfound', function(e) {
             if (userMarker) map.removeLayer(userMarker);
             userMarker = L.marker(e.latlng).addTo(map).bindPopup("Ви тут").openPopup();
-
             fetch(`${API_BASE}/nearest_shelter?lat=${e.latlng.lat}&lon=${e.latlng.lng}`)
                 .then(res => res.json())
                 .then(shelter => {
@@ -350,7 +346,8 @@
         }
 
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js');
+            // Додано параметр версії для примусового оновлення кешу
+            navigator.serviceWorker.register('sw.js?v=3');
         }
     </script>
 </body>
