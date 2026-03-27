@@ -86,7 +86,7 @@
         var hazardsLayers = {}; 
         var routeLine = null;
         var userMarker = null;
-        var lastHazardCount = -1; // Для відстеження нових загроз
+        var lastHazardCount = -1;
 
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; OpenStreetMap'
@@ -98,12 +98,24 @@
             document.getElementById('adminBadge').style.display = 'block';
         }
 
+        // --- ФУНКЦІЇ ЗУПИНКИ ЗВУКУ ---
+        function stopAlertSound() {
+            const audio = document.getElementById('alertSound');
+            audio.pause();
+            audio.currentTime = 0;
+        }
+
+        // Зупиняємо звук при будь-якій взаємодії
+        document.addEventListener('click', stopAlertSound);
+        document.addEventListener('touchstart', stopAlertSound);
+        document.addEventListener('visibilitychange', function() {
+            if (document.visibilityState === 'visible') stopAlertSound();
+        });
+
         window.onload = function() {
-            // Запит на сповіщення
             if ("Notification" in window) {
                 Notification.requestPermission();
             }
-            
             refreshAllData();
             setInterval(refreshAllData, 30000);
         };
@@ -158,7 +170,6 @@
                 .then(res => res.json())
                 .then(data => { 
                     if (data) {
-                        // Якщо з'явилася нова загроза (кількість зросла)
                         if (lastHazardCount !== -1 && data.length > lastHazardCount) {
                             triggerEmergencyAlert(data[data.length - 1]);
                         }
@@ -172,18 +183,19 @@
         }
 
         function triggerEmergencyAlert(hazard) {
-            // 1. Звук (спрацює, якщо користувач хоч раз клікнув на екран)
             const audio = document.getElementById('alertSound');
-            audio.play().catch(() => console.log("Звук заблоковано браузером до взаємодії"));
+            audio.loop = true; // Звук буде грати по колу, поки не торкнетесь екрана
+            audio.play().catch(() => console.log("Чекаю взаємодії для звуку"));
 
-            // 2. Push-сповіщення
             if (Notification.permission === "granted") {
-                new Notification("🚨 ТРИВОГА: ЗБОРІВ", {
-                    body: `Виявлено загрозу: ${hazard.name}. Радіус: ${hazard.radius}м. Ознайомтеся з картою евакуації!`,
+                const notif = new Notification("🚨 ТРИВОГА: ЗБОРІВ", {
+                    body: `Виявлено загрозу: ${hazard.name}. Відкрийте мапу!`,
                     icon: "https://cdn-icons-png.flaticon.com/512/564/564440.png"
                 });
+                notif.onclick = function() { window.focus(); stopAlertSound(); };
             } else {
                 alert(`🚨 УВАГА! НОВА ЗАГРОЗА: ${hazard.name}`);
+                stopAlertSound();
             }
         }
 
