@@ -86,7 +86,9 @@
         var hazardsLayers = {}; 
         var routeLine = null;
         var userMarker = null;
-        var lastHazardCount = -1;
+        
+        // Використовуємо localStorage для збереження кількості вже бачених загроз
+        var lastHazardCount = localStorage.getItem('lastSeenHazards') ? parseInt(localStorage.getItem('lastSeenHazards')) : -1;
 
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; OpenStreetMap'
@@ -98,18 +100,21 @@
             document.getElementById('adminBadge').style.display = 'block';
         }
 
-        // --- ФУНКЦІЇ ЗУПИНКИ ЗВУКУ ---
+        // --- КЕРУВАННЯ ЗВУКОМ ---
         function stopAlertSound() {
             const audio = document.getElementById('alertSound');
+            audio.loop = false;
             audio.pause();
             audio.currentTime = 0;
         }
 
-        // Зупиняємо звук при будь-якій взаємодії
         document.addEventListener('click', stopAlertSound);
         document.addEventListener('touchstart', stopAlertSound);
-        document.addEventListener('visibilitychange', function() {
-            if (document.visibilityState === 'visible') stopAlertSound();
+
+        // Зупиняти звук та оновлювати дані, як тільки користувач відкриває застосунок
+        window.addEventListener('focus', function() {
+            stopAlertSound();
+            refreshAllData();
         });
 
         window.onload = function() {
@@ -170,10 +175,17 @@
                 .then(res => res.json())
                 .then(data => { 
                     if (data) {
-                        if (lastHazardCount !== -1 && data.length > lastHazardCount) {
+                        // Ініціалізація при першому завантаженні
+                        if (lastHazardCount === -1) {
+                            lastHazardCount = data.length;
+                            localStorage.setItem('lastSeenHazards', data.length);
+                        } 
+                        // Якщо з'явилася реально нова загроза
+                        else if (data.length > lastHazardCount) {
                             triggerEmergencyAlert(data[data.length - 1]);
+                            lastHazardCount = data.length;
+                            localStorage.setItem('lastSeenHazards', data.length);
                         }
-                        lastHazardCount = data.length;
 
                         Object.values(hazardsLayers).forEach(layer => map.removeLayer(layer));
                         hazardsLayers = {};
@@ -184,8 +196,8 @@
 
         function triggerEmergencyAlert(hazard) {
             const audio = document.getElementById('alertSound');
-            audio.loop = true; // Звук буде грати по колу, поки не торкнетесь екрана
-            audio.play().catch(() => console.log("Чекаю взаємодії для звуку"));
+            audio.loop = true; 
+            audio.play().catch(() => console.log("Звук чекає взаємодії"));
 
             if (Notification.permission === "granted") {
                 const notif = new Notification("🚨 ТРИВОГА: ЗБОРІВ", {
@@ -251,7 +263,13 @@
         function removeHazardFromDB(id) {
             if (confirm("Видалити цю загрозу?")) {
                 fetch(`${API_BASE}/hazards/${id}`, { method: 'DELETE' })
-                .then(() => { map.removeLayer(hazardsLayers[id]); delete hazardsLayers[id]; });
+                .then(() => { 
+                    map.removeLayer(hazardsLayers[id]); 
+                    delete hazardsLayers[id];
+                    // Оновлюємо лічильник у localStorage після видалення
+                    lastHazardCount--;
+                    localStorage.setItem('lastSeenHazards', lastHazardCount);
+                });
             }
         }
 
@@ -311,9 +329,10 @@
             modal.style.display = (modal.style.display === 'block') ? 'none' : 'block';
             overlay.style.display = (overlay.style.display === 'block') ? 'none' : 'block';
         }
+
         if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js');
-}
+            navigator.serviceWorker.register('sw.js');
+        }
     </script>
 </body>
 </html>
