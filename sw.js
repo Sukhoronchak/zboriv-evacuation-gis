@@ -17,3 +17,7 @@ self.addEventListener('fetch', (event) => {
 self.addEventListener('fetch', (e) => {
   // Просто пропускаємо запити
 });
+
+self.addEventListener('push', function(event) {
+    // Це дозволить системі знати, що ми очікуємо дані
+});
