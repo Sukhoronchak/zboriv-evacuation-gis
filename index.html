@@ -17,6 +17,8 @@
 </head>
 <body>
 
+    <audio id="alertSound" src="alert.mp3" preload="auto"></audio>
+
     <div id="ecoStats" class="eco-panel">
         <h5><i class="fas fa-leaf"></i> Моніторинг Зборів</h5>
         <div class="eco-item">Повітря (AQI): <span id="aqiValue" class="eco-value">--</span></div>
@@ -84,6 +86,7 @@
         var hazardsLayers = {}; 
         var routeLine = null;
         var userMarker = null;
+        var lastHazardCount = -1; // Для відстеження нових загроз
 
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; OpenStreetMap'
@@ -96,8 +99,12 @@
         }
 
         window.onload = function() {
+            // Запит на сповіщення
+            if ("Notification" in window) {
+                Notification.requestPermission();
+            }
+            
             refreshAllData();
-            // Автоматичне оновлення кожні 30 секунд
             setInterval(refreshAllData, 30000);
         };
 
@@ -133,7 +140,6 @@
             fetch(`${API_BASE}/shelters`)
                 .then(res => res.json())
                 .then(data => {
-                    // Очищуємо старі маркери укриттів, якщо потрібно (для простоти залишаємо так)
                     data.forEach(s => {
                         L.marker([s.lat, s.lon], {
                             icon: L.divIcon({
@@ -152,12 +158,33 @@
                 .then(res => res.json())
                 .then(data => { 
                     if (data) {
-                        // Видаляємо старі шари перед малюванням нових
+                        // Якщо з'явилася нова загроза (кількість зросла)
+                        if (lastHazardCount !== -1 && data.length > lastHazardCount) {
+                            triggerEmergencyAlert(data[data.length - 1]);
+                        }
+                        lastHazardCount = data.length;
+
                         Object.values(hazardsLayers).forEach(layer => map.removeLayer(layer));
                         hazardsLayers = {};
                         data.forEach(h => drawHazard(h)); 
                     }
                 });
+        }
+
+        function triggerEmergencyAlert(hazard) {
+            // 1. Звук (спрацює, якщо користувач хоч раз клікнув на екран)
+            const audio = document.getElementById('alertSound');
+            audio.play().catch(() => console.log("Звук заблоковано браузером до взаємодії"));
+
+            // 2. Push-сповіщення
+            if (Notification.permission === "granted") {
+                new Notification("🚨 ТРИВОГА: ЗБОРІВ", {
+                    body: `Виявлено загрозу: ${hazard.name}. Радіус: ${hazard.radius}м. Ознайомтеся з картою евакуації!`,
+                    icon: "https://cdn-icons-png.flaticon.com/512/564/564440.png"
+                });
+            } else {
+                alert(`🚨 УВАГА! НОВА ЗАГРОЗА: ${hazard.name}`);
+            }
         }
 
         function drawHazard(h) {
