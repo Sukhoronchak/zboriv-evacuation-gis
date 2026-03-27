@@ -4,11 +4,12 @@ import math
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 import uvicorn
 
 app = FastAPI()
 
+# Дозволяємо запити з вашого GitHub сайту
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -22,11 +23,22 @@ DB_PATH = "shelters.db"
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
+    # Створюємо таблицю загроз
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS hazards (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT,
             radius INTEGER,
+            lat REAL,
+            lon REAL
+        )
+    ''')
+    # Створюємо таблицю укриттів (якщо її ще немає)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS shelters (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            capacity INTEGER,
             lat REAL,
             lon REAL
         )
@@ -42,7 +54,6 @@ class Hazard(BaseModel):
     lat: float
     lon: float
 
-# --- ФУНКЦІЯ РОЗРАХУНКУ ВІДСТАНІ ---
 def get_distance(lat1, lon1, lat2, lon2):
     R = 6371000 # Радіус Землі в метрах
     phi1, phi2 = math.radians(lat1), math.radians(lat2)
@@ -56,8 +67,11 @@ async def get_shelters():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM shelters")
-    data = [dict(row) for row in cursor.fetchall()]
+    try:
+        cursor.execute("SELECT * FROM shelters")
+        data = [dict(row) for row in cursor.fetchall()]
+    except sqlite3.OperationalError:
+        data = []
     conn.close()
     return data
 
@@ -82,7 +96,6 @@ async def create_hazard(h: Hazard):
     conn.close()
     return {**h.dict(), "id": new_id}
 
-# --- ФУНКЦІЯ РЕДАГУВАННЯ (UPDATE) ---
 @app.put("/hazards/{h_id}")
 async def update_hazard(h_id: int, h: Hazard):
     conn = sqlite3.connect(DB_PATH)
@@ -93,7 +106,8 @@ async def update_hazard(h_id: int, h: Hazard):
     )
     conn.commit()
     conn.close()
-    return {"status": "updated", "id": h_id}
+    # ПОВЕРТАЄМО ОБ'ЄКТ (важливо для фронтенду)
+    return {**h.dict(), "id": h_id, "status": "updated"}
 
 @app.delete("/hazards/{h_id}")
 async def delete_hazard(h_id: int):
@@ -104,7 +118,6 @@ async def delete_hazard(h_id: int):
     conn.close()
     return {"status": "deleted"}
 
-# --- ПОШУК НАЙБЛИЖЧОГО УКРИТТЯ ---
 @app.get("/nearest_shelter")
 async def nearest(lat: float, lon: float):
     conn = sqlite3.connect(DB_PATH)
@@ -115,7 +128,7 @@ async def nearest(lat: float, lon: float):
     conn.close()
 
     if not shelters:
-        raise HTTPException(status_code=404, detail="No shelters found")
+        raise HTTPException(status_code=404, detail="Укриття не знайдені")
 
     nearest_s = None
     min_dist = float('inf')
